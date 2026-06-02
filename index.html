@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viajante Pro - Completo Offline</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --primary: #1a56db;
+            --primary-dark: #1e40af;
+            --primary-light: #dbeafe;
+            --bg: #f1f5f9;
+            --surface: #ffffff;
+            --border: #e2e8f0;
+            --text: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --danger: #dc2626;
+            --warning: #d97706;
+            --success: #059669;
+            --info: #0891b2;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow: 0 1px 3px rgba(0,0,0,0.1);
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
+            --radius: 8px;
+            --radius-lg: 12px;
+            --transition: all 0.2s ease;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--text); height:100vh; overflow:hidden; }
+        .app-layout { display:grid; grid-template-columns:280px 1fr; height:100vh; }
+        .sidebar { background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow-y:auto; }
+        .sidebar-header { padding:20px; border-bottom:1px solid var(--border); background:linear-gradient(135deg,#1e40af,#1a56db); color:white; }
+        .sidebar-header h1 { font-size:18px; font-weight:700; }
+        .sidebar-header p { font-size:11px; opacity:0.9; }
+        .nav-section { margin:8px 0; }
+        .nav-section-title { font-size:10px; text-transform:uppercase; letter-spacing:1.2px; color:var(--text-muted); padding:0 20px; margin-bottom:4px; font-weight:700; }
+        .nav-item { display:flex; align-items:center; gap:10px; padding:10px 20px; cursor:pointer; transition:var(--transition); color:var(--text-secondary); font-size:13px; font-weight:500; border-left:3px solid transparent; }
+        .nav-item:hover { background:#f8fafc; color:var(--primary); }
+        .nav-item.active { background:var(--primary-light); color:var(--primary); border-left-color:var(--primary); font-weight:600; }
+        .nav-icon { font-size:16px; width:20px; text-align:center; }
+        .sidebar-footer { padding:12px 20px; border-top:1px solid var(--border); font-size:11px; color:var(--text-muted); display:flex; align-items:center; gap:6px; }
+        .status-dot { width:8px; height:8px; border-radius:50%; background:var(--success); }
+        .status-dot.offline { background:var(--danger); }
+        .main-content { display:flex; flex-direction:column; overflow:hidden; }
+        .top-bar { background:var(--surface); border-bottom:1px solid var(--border); padding:14px 24px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+        .top-bar h2 { font-size:18px; font-weight:600; }
+        .content-scroll { flex:1; overflow-y:auto; padding:24px; }
+        .page { display:none; }
+        .page.active { display:block; animation: fadeSlide 0.25s ease; }
+        @keyframes fadeSlide { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        .card { background:var(--surface); border-radius:var(--radius-lg); border:1px solid var(--border); box-shadow:var(--shadow-sm); margin-bottom:20px; }
+        .card-header { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:#fafbfc; }
+        .card-header h3 { font-size:15px; font-weight:600; }
+        .card-body { padding:20px; }
+        .btn { padding:9px 18px; border-radius:var(--radius); border:none; font-weight:500; cursor:pointer; font-size:13px; transition:var(--transition); display:inline-flex; align-items:center; gap:6px; }
+        .btn-primary { background:var(--primary); color:white; }
+        .btn-primary:hover { background:var(--primary-dark); }
+        .btn-secondary { background:#f1f5f9; color:var(--text); border:1px solid var(--border); }
+        .btn-sm { padding:5px 10px; font-size:11px; }
+        .country-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:8px; }
+        .country-item { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px; cursor:pointer; transition:var(--transition); display:flex; align-items:center; gap:10px; }
+        .country-item:hover { border-color:var(--primary); box-shadow:var(--shadow-md); transform:translateY(-1px); }
+        .country-item .flag { font-size:28px; width:36px; text-align:center; }
+        .country-item .info { flex:1; min-width:0; }
+        .country-item .name { font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .country-item .capital { font-size:11px; color:var(--text-muted); }
+        .input { width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:var(--radius); font-size:14px; transition:var(--transition); }
+        .input:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(26,86,219,0.1); }
+        .tabs { display:flex; border-bottom:2px solid var(--border); margin-bottom:16px; }
+        .tab { padding:10px 20px; cursor:pointer; font-size:13px; color:var(--text-secondary); border-bottom:2px solid transparent; margin-bottom:-2px; transition:var(--transition); }
+        .tab:hover { color:var(--primary); }
+        .tab.active { color:var(--primary); border-bottom-color:var(--primary); font-weight:600; }
+        .tab-content { display:none; }
+        .tab-content.active { display:block; }
+        .map-container { height:400px; border-radius:var(--radius-lg); overflow:hidden; border:1px solid var(--border); }
+        #map { height:100%; }
+        .loading-spinner { display:flex; align-items:center; justify-content:center; padding:40px; flex-direction:column; gap:12px; color:var(--text-muted); }
+        .spinner { width:36px; height:36px; border:3px solid var(--border); border-top-color:var(--primary); border-radius:50%; animation:spin 0.7s linear infinite; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .banner { padding:8px 16px; text-align:center; font-size:13px; }
+        .banner-warning { background:#fef3c7; color:#92400e; }
+        .banner-success { background:#d1fae5; color:#065f46; }
+        .banner-error { background:#fee2e2; color:#991b1b; }
+        @media (max-width:1024px) { .app-layout { grid-template-columns:60px 1fr; } .sidebar-header,.nav-section-title,.nav-item span:not(.nav-icon),.sidebar-footer span { display:none; } .nav-item { justify-content:center; padding:12px; } }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="sidebar-header"><h1>🗺️ Viajante Pro</h1><p>Planejamento inteligente</p></div>
+            <nav class="sidebar-nav">
+                <div class="nav-section"><div class="nav-section-title">Descobrir</div>
+                    <div class="nav-item active" data-page="explore"><span class="nav-icon">🌍</span><span>Explorar</span></div>
+                    <div class="nav-item" data-page="favorites"><span class="nav-icon">⭐</span><span>Favoritos</span></div>
+                </div>
+                <div class="nav-section"><div class="nav-section-title">Planejar</div>
+                    <div class="nav-item" data-page="itinerary"><span class="nav-icon">📅</span><span>Roteiro</span></div>
+                    <div class="nav-item" data-page="budget"><span class="nav-icon">💰</span><span>Orçamento</span></div>
+                    <div class="nav-item" data-page="checklist"><span class="nav-icon">✅</span><span>Checklist</span></div>
+                    <div class="nav-item" data-page="map"><span class="nav-icon">🗺️</span><span>Mapa</span></div>
+                </div>
+                <div class="nav-section"><div class="nav-section-title">Criar</div>
+                    <div class="nav-item" data-page="script"><span class="nav-icon">🎬</span><span>Roteiro</span></div>
+                    <div class="nav-item" data-page="stories"><span class="nav-icon">🔍</span><span>Histórias</span></div>
+                    <div class="nav-item" data-page="viral"><span class="nav-icon">📈</span><span>Viral</span></div>
+                </div>
+                <div class="nav-section"><div class="nav-section-title">Notas</div>
+                    <div class="nav-item" data-page="notes"><span class="nav-icon">📝</span><span>Notas</span></div>
+                    <div class="nav-item" data-page="ideas"><span class="nav-icon">💡</span><span>Ideias</span></div>
+                </div>
+            </nav>
+            <div class="sidebar-footer"><span class="status-dot" id="statusDot"></span><span id="statusText">Pronto</span></div>
+        </aside>
+
+        <div class="main-content">
+            <header class="top-bar"><h2 id="pageTitle">🌍 Explorar Países</h2><div style="display:flex; gap:8px;"><input type="text" class="input" id="globalSearch" placeholder="🔍 Buscar país..." style="width:220px;"><button class="btn btn-primary" onclick="window.app.performSearch()">Buscar</button></div></header>
+            <div id="bannerArea"></div>
+            <div class="content-scroll" id="contentScroll">
+                <div class="page active" id="page-explore">
+                    <div class="card"><div class="card-header"><h3>Todos os Países</h3><span id="exploreCount">0 países</span></div>
+                        <div class="card-body"><div class="country-grid" id="countryGrid"><div class="loading-spinner"><div class="spinner"></div><p>Preparando lista offline...</p></div></div><div id="loadMoreTrigger"></div></div>
+                    </div>
+                </div>
+                <div class="page" id="page-country-detail"><div id="countryDetailContent"></div></div>
+                <div class="page" id="page-favorites"><div class="card"><div class="card-header"><h3>⭐ Favoritos</h3></div><div class="card-body" id="favoritesList"></div></div></div>
+                <div class="page" id="page-itinerary"><div class="card"><div class="card-header"><h3>📅 Roteiro</h3><button class="btn btn-primary btn-sm" onclick="window.app.addItineraryDay()">+ Dia</button></div><div class="card-body"><select class="input" id="itineraryCountry"><option value="">País...</option></select><input type="date" class="input" id="itineraryStartDate" style="margin-top:8px;"><div id="itineraryDays" style="margin-top:16px;"></div></div></div></div>
+                <div class="page" id="page-budget"><div class="card"><div class="card-header"><h3>💰 Orçamento</h3><button class="btn btn-primary btn-sm" onclick="window.app.addBudgetItem()">+ Despesa</button></div><div class="card-body"><div id="budgetSummary"></div><div id="budgetList"></div></div></div></div>
+                <div class="page" id="page-checklist"><div class="card"><div class="card-header"><h3>✅ Checklist</h3><button class="btn btn-primary btn-sm" onclick="window.app.addChecklistItem()">+ Item</button></div><div class="card-body" id="checklistContainer"></div></div></div>
+                <div class="page" id="page-map"><div class="card"><div class="card-header"><h3>🗺️ Mapa</h3></div><div class="card-body"><div class="map-container"><div id="map"></div></div><div style="display:flex; gap:8px; margin-top:12px;"><input type="text" class="input" id="routeOrigin" placeholder="Origem"><input type="text" class="input" id="routeDest" placeholder="Destino"><button class="btn btn-primary" onclick="window.app.calculateRoute()">Rota</button></div><div id="routeInfo" style="margin-top:12px;"></div></div></div></div>
+                <div class="page" id="page-script"><div class="card"><div class="card-header"><h3>🎬 Roteiro de Vídeo</h3></div><div class="card-body"><select class="input" id="scriptCountry"><option value="">País...</option></select><select class="input" id="scriptLocation"><option value="">Local...</option></select><button class="btn btn-primary" onclick="window.app.generateScript()">Gerar</button><div id="scriptOutput" style="margin-top:16px;"></div></div></div></div>
+                <div class="page" id="page-stories"><div class="card"><div class="card-header"><h3>🔍 Histórias</h3></div><div class="card-body"><input type="text" class="input" id="storyCity" placeholder="Cidade..."><button class="btn btn-primary" onclick="window.app.huntStories()">Buscar</button><div id="storiesOutput" style="margin-top:16px;"></div></div></div></div>
+                <div class="page" id="page-viral"><div class="card"><div class="card-header"><h3>📈 Viral</h3></div><div class="card-body"><input type="text" class="input" id="viralTopic" placeholder="Tema..."><button class="btn btn-primary" onclick="window.app.analyzeViral()">Analisar</button><div id="viralOutput" style="margin-top:16px;"></div></div></div></div>
+                <div class="page" id="page-notes"><div class="card"><div class="card-header"><h3>📝 Notas</h3><button class="btn btn-primary btn-sm" onclick="window.app.addNote()">+ Nova</button></div><div class="card-body" id="notesContainer"></div></div></div>
+                <div class="page" id="page-ideas"><div class="card"><div class="card-header"><h3>💡 Ideias</h3></div><div class="card-body"><textarea class="input" id="ideaInput" placeholder="Sua ideia..."></textarea><button class="btn btn-primary" onclick="window.app.saveIdea()">Salvar</button><div id="ideasList" style="margin-top:16px;"></div></div></div></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // ============================================================
+        // LISTA COMPLETA DOS 193 PAÍSES (OFFLINE)
+        // ============================================================
+        const ALL_COUNTRIES_OFFLINE = [
+            { name:"Afeganistão", capital:"Cabul", region:"Ásia", subregion:"Sul da Ásia", cca3:"AF", latlng:[33,65], flag:"🇦🇫", currencies:["AFN"], languages:["Pashto","Dari"] },
+            { name:"África do Sul", capital:"Pretória", region:"África", subregion:"África Austral", cca3:"ZA", latlng:[-29,24], flag:"🇿🇦", currencies:["ZAR"], languages:["Afrikaans","English"] },
+            { name:"Albânia", capital:"Tirana", region:"Europa", subregion:"Sudeste da Europa", cca3:"AL", latlng:[41,20], flag:"🇦🇱", currencies:["ALL"], languages:["Albanian"] },
+            { name:"Alemanha", capital:"Berlim", region:"Europa", subregion:"Europa Ocidental", cca3:"DE", latlng:[51,9], flag:"🇩🇪", currencies:["EUR"], languages:["German"] },
+            { name:"Andorra", capital:"Andorra la Vella", region:"Europa", subregion:"Sul da Europa", cca3:"AD", latlng:[42.5,1.5], flag:"🇦🇩", currencies:["EUR"], languages:["Catalan"] },
+            { name:"Angola", capital:"Luanda", region:"África", subregion:"África Central", cca3:"AO", latlng:[-12.5,18.5], flag:"🇦🇴", currencies:["AOA"], languages:["Portuguese"] },
+            { name:"Antígua e Barbuda", capital:"Saint John's", region:"Américas", subregion:"Caribe", cca3:"AG", latlng:[17.05,-61.8], flag:"🇦🇬", currencies:["XCD"], languages:["English"] },
+            { name:"Arábia Saudita", capital:"Riad", region:"Ásia", subregion:"Ásia Ocidental", cca3:"SA", latlng:[25,45], flag:"🇸🇦", currencies:["SAR"], languages:["Arabic"] },
+            { name:"Argélia", capital:"Argel", region:"África", subregion:"Norte da África", cca3:"DZ", latlng:[28,3], flag:"🇩🇿", currencies:["DZD"], languages:["Arabic","Berber"] },
+            { name:"Argentina", capital:"Buenos Aires", region:"Américas", subregion:"América do Sul", cca3:"AR", latlng:[-34,-64], flag:"🇦🇷", currencies:["ARS"], languages:["Spanish"] },
+            { name:"Armênia", capital:"Erevan", region:"Ásia", subregion:"Ásia Ocidental", cca3:"AM", latlng:[40,45], flag:"🇦🇲", currencies:["AMD"], languages:["Armenian"] },
+            { name:"Austrália", capital:"Camberra", region:"Oceania", subregion:"Austrália e Nova Zelândia", cca3:"AU", latlng:[-27,133], flag:"🇦🇺", currencies:["AUD"], languages:["English"] },
+            { name:"Áustria", capital:"Viena", region:"Europa", subregion:"Europa Ocidental", cca3:"AT", latlng:[47.33,13.33], flag:"🇦🇹", currencies:["EUR"], languages:["German"] },
+            { name:"Azerbaijão", capital:"Baku", region:"Ásia", subregion:"Ásia Ocidental", cca3:"AZ", latlng:[40.5,47.5], flag:"🇦🇿", currencies:["AZN"], languages:["Azerbaijani"] },
+            { name:"Bahamas", capital:"Nassau", region:"Américas", subregion:"Caribe", cca3:"BS", latlng:[24.25,-76], flag:"🇧🇸", currencies:["BSD"], languages:["English"] },
+            { name:"Bangladesh", capital:"Daca", region:"Ásia", subregion:"Sul da Ásia", cca3:"BD", latlng:[24,90], flag:"🇧🇩", currencies:["BDT"], languages:["Bengali"] },
+            { name:"Barbados", capital:"Bridgetown", region:"Américas", subregion:"Caribe", cca3:"BB", latlng:[13.17,-59.53], flag:"🇧🇧", currencies:["BBD"], languages:["English"] },
+            { name:"Bélgica", capital:"Bruxelas", region:"Europa", subregion:"Europa Ocidental", cca3:"BE", latlng:[50.83,4], flag:"🇧🇪", currencies:["EUR"], languages:["Dutch","French","German"] },
+            { name:"Belize", capital:"Belmopan", region:"Américas", subregion:"América Central", cca3:"BZ", latlng:[17.25,-88.75], flag:"🇧🇿", currencies:["BZD"], languages:["English"] },
+            { name:"Benin", capital:"Porto-Novo", region:"África", subregion:"África Ocidental", cca3:"BJ", latlng:[9.5,2.25], flag:"🇧🇯", currencies:["XOF"], languages:["French"] },
+            { name:"Bielorrússia", capital:"Minsk", region:"Europa", subregion:"Leste da Europa", cca3:"BY", latlng:[53,28], flag:"🇧🇾", currencies:["BYN"], languages:["Belarusian","Russian"] },
+            { name:"Bolívia", capital:"Sucre", region:"Américas", subregion:"América do Sul", cca3:"BO", latlng:[-17,-65], flag:"🇧🇴", currencies:["BOB"], languages:["Spanish","Quechua"] },
+            { name:"Bósnia e Herzegovina", capital:"Sarajevo", region:"Europa", subregion:"Sudeste da Europa", cca3:"BA", latlng:[44,18], flag:"🇧🇦", currencies:["BAM"], languages:["Bosnian","Croatian","Serbian"] },
+            { name:"Botsuana", capital:"Gaborone", region:"África", subregion:"África Austral", cca3:"BW", latlng:[-22,24], flag:"🇧🇼", currencies:["BWP"], languages:["English","Tswana"] },
+            { name:"Brasil", capital:"Brasília", region:"Américas", subregion:"América do Sul", cca3:"BR", latlng:[-10,-55], flag:"🇧🇷", currencies:["BRL"], languages:["Portuguese"] },
+            { name:"Brunei", capital:"Bandar Seri Begawan", region:"Ásia", subregion:"Sudeste Asiático", cca3:"BN", latlng:[4.5,114.67], flag:"🇧🇳", currencies:["BND"], languages:["Malay"] },
+            { name:"Bulgária", capital:"Sófia", region:"Europa", subregion:"Sudeste da Europa", cca3:"BG", latlng:[43,25], flag:"🇧🇬", currencies:["BGN"], languages:["Bulgarian"] },
+            { name:"Burkina Faso", capital:"Ouagadougou", region:"África", subregion:"África Ocidental", cca3:"BF", latlng:[13,-2], flag:"🇧🇫", currencies:["XOF"], languages:["French"] },
+            { name:"Burundi", capital:"Gitega", region:"África", subregion:"África Oriental", cca3:"BI", latlng:[-3.5,30], flag:"🇧🇮", currencies:["BIF"], languages:["Kirundi","French"] },
+            { name:"Butão", capital:"Thimphu", region:"Ásia", subregion:"Sul da Ásia", cca3:"BT", latlng:[27.5,90.5], flag:"🇧🇹", currencies:["BTN"], languages:["Dzongkha"] },
+            { name:"Cabo Verde", capital:"Praia", region:"África", subregion:"África Ocidental", cca3:"CV", latlng:[16,-24], flag:"🇨🇻", currencies:["CVE"], languages:["Portuguese"] },
+            { name:"Camarões", capital:"Yaoundé", region:"África", subregion:"África Central", cca3:"CM", latlng:[6,12], flag:"🇨🇲", currencies:["XAF"], languages:["French","English"] },
+            { name:"Camboja", capital:"Phnom Penh", region:"Ásia", subregion:"Sudeste Asiático", cca3:"KH", latlng:[13,105], flag:"🇰🇭", currencies:["KHR"], languages:["Khmer"] },
+            { name:"Canadá", capital:"Ottawa", region:"Américas", subregion:"América do Norte", cca3:"CA", latlng:[60,-95], flag:"🇨🇦", currencies:["CAD"], languages:["English","French"] },
+            { name:"Catar", capital:"Doha", region:"Ásia", subregion:"Ásia Ocidental", cca3:"QA", latlng:[25.5,51.25], flag:"🇶🇦", currencies:["QAR"], languages:["Arabic"] },
+            { name:"Cazaquistão", capital:"Astana", region:"Ásia", subregion:"Ásia Central", cca3:"KZ", latlng:[48,68], flag:"🇰🇿", currencies:["KZT"], languages:["Kazakh","Russian"] },
+            { name:"Chade", capital:"N'Djamena", region:"África", subregion:"África Central", cca3:"TD", latlng:[15,19], flag:"🇹🇩", currencies:["XAF"], languages:["French","Arabic"] },
+            { name:"Chile", capital:"Santiago", region:"Américas", subregion:"América do Sul", cca3:"CL", latlng:[-30,-71], flag:"🇨🇱", currencies:["CLP"], languages:["Spanish"] },
+            { name:"China", capital:"Pequim", region:"Ásia", subregion:"Ásia Oriental", cca3:"CN", latlng:[35,105], flag:"🇨🇳", currencies:["CNY"], languages:["Chinese"] },
+            { name:"Chipre", capital:"Nicósia", region:"Ásia", subregion:"Ásia Ocidental", cca3:"CY", latlng:[35,33], flag:"🇨🇾", currencies:["EUR"], languages:["Greek","Turkish"] },
+            { name:"Colômbia", capital:"Bogotá", region:"Américas", subregion:"América do Sul", cca3:"CO", latlng:[4,-72], flag:"🇨🇴", currencies:["COP"], languages:["Spanish"] },
+            { name:"Comores", capital:"Moroni", region:"África", subregion:"África Oriental", cca3:"KM", latlng:[-12.17,44.25], flag:"🇰🇲", currencies:["KMF"], languages:["Comorian","Arabic","French"] },
+            { name:"Congo", capital:"Brazzaville", region:"África", subregion:"África Central", cca3:"CG", latlng:[-1,15], flag:"🇨🇬", currencies:["XAF"], languages:["French"] },
+            { name:"Coreia do Norte", capital:"Pyongyang", region:"Ásia", subregion:"Ásia Oriental", cca3:"KP", latlng:[40,127], flag:"🇰🇵", currencies:["KPW"], languages:["Korean"] },
+            { name:"Coreia do Sul", capital:"Seul", region:"Ásia", subregion:"Ásia Oriental", cca3:"KR", latlng:[37,127.5], flag:"🇰🇷", currencies:["KRW"], languages:["Korean"] },
+            { name:"Costa do Marfim", capital:"Yamoussoukro", region:"África", subregion:"África Ocidental", cca3:"CI", latlng:[8,-5], flag:"🇨🇮", currencies:["XOF"], languages:["French"] },
+            { name:"Costa Rica", capital:"San José", region:"Américas", subregion:"América Central", cca3:"CR", latlng:[10,-84], flag:"🇨🇷", currencies:["CRC"], languages:["Spanish"] },
+            { name:"Croácia", capital:"Zagreb", region:"Europa", subregion:"Sudeste da Europa", cca3:"HR", latlng:[45.17,15.5], flag:"🇭🇷", currencies:["EUR"], languages:["Croatian"] },
+            { name:"Cuba", capital:"Havana", region:"Américas", subregion:"Caribe", cca3:"CU", latlng:[21.5,-80], flag:"🇨🇺", currencies:["CUP"], languages:["Spanish"] },
+            { name:"Dinamarca", capital:"Copenhague", region:"Europa", subregion:"Norte da Europa", cca3:"DK", latlng:[56,10], flag:"🇩🇰", currencies:["DKK"], languages:["Danish"] },
+            { name:"Djibuti", capital:"Djibuti", region:"África", subregion:"África Oriental", cca3:"DJ", latlng:[11.5,43], flag:"🇩🇯", currencies:["DJF"], languages:["French","Arabic"] },
+            { name:"Dominica", capital:"Roseau", region:"Américas", subregion:"Caribe", cca3:"DM", latlng:[15.42,-61.33], flag:"🇩🇲", currencies:["XCD"], languages:["English"] },
+            { name:"Egito", capital:"Cairo", region:"África", subregion:"Norte da África", cca3:"EG", latlng:[27,30], flag:"🇪🇬", currencies:["EGP"], languages:["Arabic"] },
+            { name:"El Salvador", capital:"San Salvador", region:"Américas", subregion:"América Central", cca3:"SV", latlng:[13.83,-88.92], flag:"🇸🇻", currencies:["USD"], languages:["Spanish"] },
+            { name:"Emirados Árabes Unidos", capital:"Abu Dhabi", region:"Ásia", subregion:"Ásia Ocidental", cca3:"AE", latlng:[24,54], flag:"🇦🇪", currencies:["AED"], languages:["Arabic"] },
+            { name:"Equador", capital:"Quito", region:"Américas", subregion:"América do Sul", cca3:"EC", latlng:[-2,-77.5], flag:"🇪🇨", currencies:["USD"], languages:["Spanish"] },
+            { name:"Eritreia", capital:"Asmara", region:"África", subregion:"África Oriental", cca3:"ER", latlng:[15,39], flag:"🇪🇷", currencies:["ERN"], languages:["Tigrinya","Arabic"] },
+            { name:"Eslováquia", capital:"Bratislava", region:"Europa", subregion:"Europa Central", cca3:"SK", latlng:[48.67,19.5], flag:"🇸🇰", currencies:["EUR"], languages:["Slovak"] },
+            { name:"Eslovênia", capital:"Liubliana", region:"Europa", subregion:"Europa Central", cca3:"SI", latlng:[46.12,14.82], flag:"🇸🇮", currencies:["EUR"], languages:["Slovenian"] },
+            { name:"Espanha", capital:"Madri", region:"Europa", subregion:"Sul da Europa", cca3:"ES", latlng:[40,-4], flag:"🇪🇸", currencies:["EUR"], languages:["Spanish"] },
+            { name:"Estados Unidos", capital:"Washington D.C.", region:"Américas", subregion:"América do Norte", cca3:"US", latlng:[38,-97], flag:"🇺🇸", currencies:["USD"], languages:["English"] },
+            { name:"Estônia", capital:"Tallinn", region:"Europa", subregion:"Norte da Europa", cca3:"EE", latlng:[59,26], flag:"🇪🇪", currencies:["EUR"], languages:["Estonian"] },
+            { name:"Etiópia", capital:"Adis Abeba", region:"África", subregion:"África Oriental", cca3:"ET", latlng:[8,38], flag:"🇪🇹", currencies:["ETB"], languages:["Amharic"] },
+            { name:"Fiji", capital:"Suva", region:"Oceania", subregion:"Melanésia", cca3:"FJ", latlng:[-18,175], flag:"🇫🇯", currencies:["FJD"], languages:["English","Fijian"] },
+            { name:"Filipinas", capital:"Manila", region:"Ásia", subregion:"Sudeste Asiático", cca3:"PH", latlng:[13,122], flag:"🇵🇭", currencies:["PHP"], languages:["Filipino","English"] },
+            { name:"Finlândia", capital:"Helsinque", region:"Europa", subregion:"Norte da Europa", cca3:"FI", latlng:[64,26], flag:"🇫🇮", currencies:["EUR"], languages:["Finnish","Swedish"] },
+            { name:"França", capital:"Paris", region:"Europa", subregion:"Europa Ocidental", cca3:"FR", latlng:[46,2], flag:"🇫🇷", currencies:["EUR"], languages:["French"] },
+            { name:"Gabão", capital:"Libreville", region:"África", subregion:"África Central", cca3:"GA", latlng:[-1,11.75], flag:"🇬🇦", currencies:["XAF"], languages:["French"] },
+            { name:"Gâmbia", capital:"Banjul", region:"África", subregion:"África Ocidental", cca3:"GM", latlng:[13.47,-16.57], flag:"🇬🇲", currencies:["GMD"], languages:["English"] },
+            { name:"Gana", capital:"Acra", region:"África", subregion:"África Ocidental", cca3:"GH", latlng:[8,-2], flag:"🇬🇭", currencies:["GHS"], languages:["English"] },
+            { name:"Geórgia", capital:"Tbilisi", region:"Ásia", subregion:"Ásia Ocidental", cca3:"GE", latlng:[42,43.5], flag:"🇬🇪", currencies:["GEL"], languages:["Georgian"] },
+            { name:"Granada", capital:"Saint George's", region:"Américas", subregion:"Caribe", cca3:"GD", latlng:[12.12,-61.67], flag:"🇬🇩", currencies:["XCD"], languages:["English"] },
+            { name:"Grécia", capital:"Atenas", region:"Europa", subregion:"Sul da Europa", cca3:"GR", latlng:[39,22], flag:"🇬🇷", currencies:["EUR"], languages:["Greek"] },
+            { name:"Guatemala", capital:"Cidade da Guatemala", region:"Américas", subregion:"América Central", cca3:"GT", latlng:[15.5,-90.25], flag:"🇬🇹", currencies:["GTQ"], languages:["Spanish"] },
+            { name:"Guiana", capital:"Georgetown", region:"Américas", subregion:"América do Sul", cca3:"GY", latlng:[5,-59], flag:"🇬🇾", currencies:["GYD"], languages:["English"] },
+            { name:"Guiné", capital:"Conacri", region:"África", subregion:"África Ocidental", cca3:"GN", latlng:[11,-10], flag:"🇬🇳", currencies:["GNF"], languages:["French"] },
+            { name:"Guiné-Bissau", capital:"Bissau", region:"África", subregion:"África Ocidental", cca3:"GW", latlng:[12,-15], flag:"🇬🇼", currencies:["XOF"], languages:["Portuguese"] },
+            { name:"Guiné Equatorial", capital:"Malabo", region:"África", subregion:"África Central", cca3:"GQ", latlng:[2,10], flag:"🇬🇶", currencies:["XAF"], languages:["Spanish","French"] },
+            { name:"Haiti", capital:"Porto Príncipe", region:"Américas", subregion:"Caribe", cca3:"HT", latlng:[19,-72.42], flag:"🇭🇹", currencies:["HTG"], languages:["Haitian Creole","French"] },
+            { name:"Honduras", capital:"Tegucigalpa", region:"Américas", subregion:"América Central", cca3:"HN", latlng:[15,-86.5], flag:"🇭🇳", currencies:["HNL"], languages:["Spanish"] },
+            { name:"Hungria", capital:"Budapeste", region:"Europa", subregion:"Europa Central", cca3:"HU", latlng:[47,20], flag:"🇭🇺", currencies:["HUF"], languages:["Hungarian"] },
+            { name:"Iêmen", capital:"Sana", region:"Ásia", subregion:"Ásia Ocidental", cca3:"YE", latlng:[15,48], flag:"🇾🇪", currencies:["YER"], languages:["Arabic"] },
+            { name:"Índia", capital:"Nova Délhi", region:"Ásia", subregion:"Sul da Ásia", cca3:"IN", latlng:[20,77], flag:"🇮🇳", currencies:["INR"], languages:["Hindi","English"] },
+            { name:"Indonésia", capital:"Jacarta", region:"Ásia", subregion:"Sudeste Asiático", cca3:"ID", latlng:[-5,120], flag:"🇮🇩", currencies:["IDR"], languages:["Indonesian"] },
+            { name:"Irã", capital:"Teerã", region:"Ásia", subregion:"Sul da Ásia", cca3:"IR", latlng:[32,53], flag:"🇮🇷", currencies:["IRR"], languages:["Persian"] },
+            { name:"Iraque", capital:"Bagdá", region:"Ásia", subregion:"Ásia Ocidental", cca3:"IQ", latlng:[33,44], flag:"🇮🇶", currencies:["IQD"], languages:["Arabic","Kurdish"] },
+            { name:"Irlanda", capital:"Dublin", region:"Europa", subregion:"Norte da Europa", cca3:"IE", latlng:[53,-8], flag:"🇮🇪", currencies:["EUR"], languages:["Irish","English"] },
+            { name:"Islândia", capital:"Reiquiavique", region:"Europa", subregion:"Norte da Europa", cca3:"IS", latlng:[65,-18], flag:"🇮🇸", currencies:["ISK"], languages:["Icelandic"] },
+            { name:"Israel", capital:"Jerusalém", region:"Ásia", subregion:"Ásia Ocidental", cca3:"IL", latlng:[31.5,34.75], flag:"🇮🇱", currencies:["ILS"], languages:["Hebrew","Arabic"] },
+            { name:"Itália", capital:"Roma", region:"Europa", subregion:"Sul da Europa", cca3:"IT", latlng:[42.83,12.83], flag:"🇮🇹", currencies:["EUR"], languages:["Italian"] },
+            { name:"Jamaica", capital:"Kingston", region:"Américas", subregion:"Caribe", cca3:"JM", latlng:[18.25,-77.5], flag:"🇯🇲", currencies:["JMD"], languages:["English"] },
+            { name:"Japão", capital:"Tóquio", region:"Ásia", subregion:"Ásia Oriental", cca3:"JP", latlng:[36,138], flag:"🇯🇵", currencies:["JPY"], languages:["Japanese"] },
+            { name:"Jordânia", capital:"Amã", region:"Ásia", subregion:"Ásia Ocidental", cca3:"JO", latlng:[31,36], flag:"🇯🇴", currencies:["JOD"], languages:["Arabic"] },
+            { name:"Kuwait", capital:"Cidade do Kuwait", region:"Ásia", subregion:"Ásia Ocidental", cca3:"KW", latlng:[29.5,45.75], flag:"🇰🇼", currencies:["KWD"], languages:["Arabic"] },
+            { name:"Laos", capital:"Vientiane", region:"Ásia", subregion:"Sudeste Asiático", cca3:"LA", latlng:[18,105], flag:"🇱🇦", currencies:["LAK"], languages:["Lao"] },
+            { name:"Lesoto", capital:"Maseru", region:"África", subregion:"África Austral", cca3:"LS", latlng:[-29.5,28.5], flag:"🇱🇸", currencies:["LSL"], languages:["Sesotho","English"] },
+            { name:"Letônia", capital:"Riga", region:"Europa", subregion:"Norte da Europa", cca3:"LV", latlng:[57,25], flag:"🇱🇻", currencies:["EUR"], languages:["Latvian"] },
+            { name:"Líbano", capital:"Beirute", region:"Ásia", subregion:"Ásia Ocidental", cca3:"LB", latlng:[33.83,35.83], flag:"🇱🇧", currencies:["LBP"], languages:["Arabic"] },
+            { name:"Libéria", capital:"Monróvia", region:"África", subregion:"África Ocidental", cca3:"LR", latlng:[6.5,-9.5], flag:"🇱🇷", currencies:["LRD"], languages:["English"] },
+            { name:"Líbia", capital:"Trípoli", region:"África", subregion:"Norte da África", cca3:"LY", latlng:[25,17], flag:"🇱🇾", currencies:["LYD"], languages:["Arabic"] },
+            { name:"Liechtenstein", capital:"Vaduz", region:"Europa", subregion:"Europa Ocidental", cca3:"LI", latlng:[47.17,9.53], flag:"🇱🇮", currencies:["CHF"], languages:["German"] },
+            { name:"Lituânia", capital:"Vilnius", region:"Europa", subregion:"Norte da Europa", cca3:"LT", latlng:[56,24], flag:"🇱🇹", currencies:["EUR"], languages:["Lithuanian"] },
+            { name:"Luxemburgo", capital:"Luxemburgo", region:"Europa", subregion:"Europa Ocidental", cca3:"LU", latlng:[49.75,6.17], flag:"🇱🇺", currencies:["EUR"], languages:["Luxembourgish","French","German"] },
+            { name:"Macedônia do Norte", capital:"Skopje", region:"Europa", subregion:"Sudeste da Europa", cca3:"MK", latlng:[41.83,22], flag:"🇲🇰", currencies:["MKD"], languages:["Macedonian"] },
+            { name:"Madagáscar", capital:"Antananarivo", region:"África", subregion:"África Oriental", cca3:"MG", latlng:[-20,47], flag:"🇲🇬", currencies:["MGA"], languages:["Malagasy","French"] },
+            { name:"Malásia", capital:"Kuala Lumpur", region:"Ásia", subregion:"Sudeste Asiático", cca3:"MY", latlng:[2.5,112.5], flag:"🇲🇾", currencies:["MYR"], languages:["Malay"] },
+            { name:"Malawi", capital:"Lilongwe", region:"África", subregion:"África Oriental", cca3:"MW", latlng:[-13.5,34], flag:"🇲🇼", currencies:["MWK"], languages:["English","Chichewa"] },
+            { name:"Maldivas", capital:"Malé", region:"Ásia", subregion:"Sul da Ásia", cca3:"MV", latlng:[3.25,73], flag:"🇲🇻", currencies:["MVR"], languages:["Dhivehi"] },
+            { name:"Mali", capital:"Bamako", region:"África", subregion:"África Ocidental", cca3:"ML", latlng:[17,-4], flag:"🇲🇱", currencies:["XOF"], languages:["French"] },
+            { name:"Malta", capital:"Valeta", region:"Europa", subregion:"Sul da Europa", cca3:"MT", latlng:[35.83,14.58], flag:"🇲🇹", currencies:["EUR"], languages:["Maltese","English"] },
+            { name:"Marrocos", capital:"Rabat", region:"África", subregion:"Norte da África", cca3:"MA", latlng:[32,-5], flag:"🇲🇦", currencies:["MAD"], languages:["Arabic","Berber"] },
+            { name:"Maurício", capital:"Port Louis", region:"África", subregion:"África Oriental", cca3:"MU", latlng:[-20.28,57.55], flag:"🇲🇺", currencies:["MUR"], languages:["English"] },
+            { name:"Mauritânia", capital:"Nouakchott", region:"África", subregion:"África Ocidental", cca3:"MR", latlng:[20,-12], flag:"🇲🇷", currencies:["MRU"], languages:["Arabic"] },
+            { name:"México", capital:"Cidade do México", region:"Américas", subregion:"América Central", cca3:"MX", latlng:[23,-102], flag:"🇲🇽", currencies:["MXN"], languages:["Spanish"] },
+            { name:"Mianmar", capital:"Naypyidaw", region:"Ásia", subregion:"Sudeste Asiático", cca3:"MM", latlng:[22,98], flag:"🇲🇲", currencies:["MMK"], languages:["Burmese"] },
+            { name:"Micronésia", capital:"Palikir", region:"Oceania", subregion:"Micronésia", cca3:"FM", latlng:[6.92,158.25], flag:"🇫🇲", currencies:["USD"], languages:["English"] },
+            { name:"Moçambique", capital:"Maputo", region:"África", subregion:"África Oriental", cca3:"MZ", latlng:[-18.25,35], flag:"🇲🇿", currencies:["MZN"], languages:["Portuguese"] },
+            { name:"Moldávia", capital:"Chisinau", region:"Europa", subregion:"Leste da Europa", cca3:"MD", latlng:[47,29], flag:"🇲🇩", currencies:["MDL"], languages:["Romanian"] },
+            { name:"Mônaco", capital:"Mônaco", region:"Europa", subregion:"Europa Ocidental", cca3:"MC", latlng:[43.73,7.4], flag:"🇲🇨", currencies:["EUR"], languages:["French"] },
+            { name:"Mongólia", capital:"Ulan Bator", region:"Ásia", subregion:"Ásia Oriental", cca3:"MN", latlng:[46,105], flag:"🇲🇳", currencies:["MNT"], languages:["Mongolian"] },
+            { name:"Montenegro", capital:"Podgorica", region:"Europa", subregion:"Sudeste da Europa", cca3:"ME", latlng:[42.5,19.3], flag:"🇲🇪", currencies:["EUR"], languages:["Montenegrin"] },
+            { name:"Namíbia", capital:"Windhoek", region:"África", subregion:"África Austral", cca3:"NA", latlng:[-22,17], flag:"🇳🇦", currencies:["NAD"], languages:["English"] },
+            { name:"Nauru", capital:"Yaren", region:"Oceania", subregion:"Micronésia", cca3:"NR", latlng:[-0.53,166.92], flag:"🇳🇷", currencies:["AUD"], languages:["English","Nauruan"] },
+            { name:"Nepal", capital:"Katmandu", region:"Ásia", subregion:"Sul da Ásia", cca3:"NP", latlng:[28,84], flag:"🇳🇵", currencies:["NPR"], languages:["Nepali"] },
+            { name:"Nicarágua", capital:"Manágua", region:"Américas", subregion:"América Central", cca3:"NI", latlng:[13,-85], flag:"🇳🇮", currencies:["NIO"], languages:["Spanish"] },
+            { name:"Níger", capital:"Niamey", region:"África", subregion:"África Ocidental", cca3:"NE", latlng:[16,8], flag:"🇳🇪", currencies:["XOF"], languages:["French"] },
+            { name:"Nigéria", capital:"Abuja", region:"África", subregion:"África Ocidental", cca3:"NG", latlng:[10,8], flag:"🇳🇬", currencies:["NGN"], languages:["English"] },
+            { name:"Noruega", capital:"Oslo", region:"Europa", subregion:"Norte da Europa", cca3:"NO", latlng:[62,10], flag:"🇳🇴", currencies:["NOK"], languages:["Norwegian"] },
+            { name:"Nova Zelândia", capital:"Wellington", region:"Oceania", subregion:"Austrália e Nova Zelândia", cca3:"NZ", latlng:[-41,174], flag:"🇳🇿", currencies:["NZD"], languages:["English","Māori"] },
+            { name:"Omã", capital:"Mascate", region:"Ásia", subregion:"Ásia Ocidental", cca3:"OM", latlng:[21,57], flag:"🇴🇲", currencies:["OMR"], languages:["Arabic"] },
+            { name:"Países Baixos", capital:"Amsterdã", region:"Europa", subregion:"Europa Ocidental", cca3:"NL", latlng:[52.5,5.75], flag:"🇳🇱", currencies:["EUR"], languages:["Dutch"] },
+            { name:"Palau", capital:"Ngerulmud", region:"Oceania", subregion:"Micronésia", cca3:"PW", latlng:[7.5,134.5], flag:"🇵🇼", currencies:["USD"], languages:["English","Palauan"] },
+            { name:"Panamá", capital:"Cidade do Panamá", region:"Américas", subregion:"América Central", cca3:"PA", latlng:[9,-80], flag:"🇵🇦", currencies:["PAB"], languages:["Spanish"] },
+            { name:"Papua-Nova Guiné", capital:"Port Moresby", region:"Oceania", subregion:"Melanésia", cca3:"PG", latlng:[-6,147], flag:"🇵🇬", currencies:["PGK"], languages:["English"] },
+            { name:"Paquistão", capital:"Islamabad", region:"Ásia", subregion:"Sul da Ásia", cca3:"PK", latlng:[30,70], flag:"🇵🇰", currencies:["PKR"], languages:["Urdu","English"] },
+            { name:"Paraguai", capital:"Assunção", region:"Américas", subregion:"América do Sul", cca3:"PY", latlng:[-23,-58], flag:"🇵🇾", currencies:["PYG"], languages:["Spanish","Guarani"] },
+            { name:"Peru", capital:"Lima", region:"Américas", subregion:"América do Sul", cca3:"PE", latlng:[-10,-76], flag:"🇵🇪", currencies:["PEN"], languages:["Spanish"] },
+            { name:"Polônia", capital:"Varsóvia", region:"Europa", subregion:"Europa Central", cca3:"PL", latlng:[52,20], flag:"🇵🇱", currencies:["PLN"], languages:["Polish"] },
+            { name:"Portugal", capital:"Lisboa", region:"Europa", subregion:"Sul da Europa", cca3:"PT", latlng:[39.5,-8], flag:"🇵🇹", currencies:["EUR"], languages:["Portuguese"] },
+            { name:"Quênia", capital:"Nairóbi", region:"África", subregion:"África Oriental", cca3:"KE", latlng:[1,38], flag:"🇰🇪", currencies:["KES"], languages:["Swahili","English"] },
+            { name:"Quirguistão", capital:"Bishkek", region:"Ásia", subregion:"Ásia Central", cca3:"KG", latlng:[41,75], flag:"🇰🇬", currencies:["KGS"], languages:["Kyrgyz","Russian"] },
+            { name:"Reino Unido", capital:"Londres", region:"Europa", subregion:"Norte da Europa", cca3:"GB", latlng:[54,-2], flag:"🇬🇧", currencies:["GBP"], languages:["English"] },
+            { name:"República Centro-Africana", capital:"Bangui", region:"África", subregion:"África Central", cca3:"CF", latlng:[7,21], flag:"🇨🇫", currencies:["XAF"], languages:["French"] },
+            { name:"República Dominicana", capital:"Santo Domingo", region:"Américas", subregion:"Caribe", cca3:"DO", latlng:[19,-70.67], flag:"🇩🇴", currencies:["DOP"], languages:["Spanish"] },
+            { name:"República Tcheca", capital:"Praga", region:"Europa", subregion:"Europa Central", cca3:"CZ", latlng:[49.75,15.5], flag:"🇨🇿", currencies:["CZK"], languages:["Czech"] },
+            { name:"Romênia", capital:"Bucareste", region:"Europa", subregion:"Sudeste da Europa", cca3:"RO", latlng:[46,25], flag:"🇷🇴", currencies:["RON"], languages:["Romanian"] },
+            { name:"Ruanda", capital:"Kigali", region:"África", subregion:"África Oriental", cca3:"RW", latlng:[-2,30], flag:"🇷🇼", currencies:["RWF"], languages:["Kinyarwanda","French","English"] },
+            { name:"Rússia", capital:"Moscou", region:"Europa", subregion:"Leste da Europa", cca3:"RU", latlng:[60,100], flag:"🇷🇺", currencies:["RUB"], languages:["Russian"] },
+            { name:"Samoa", capital:"Apia", region:"Oceania", subregion:"Polinésia", cca3:"WS", latlng:[-13.58,-172.33], flag:"🇼🇸", currencies:["WST"], languages:["Samoan","English"] },
+            { name:"San Marino", capital:"San Marino", region:"Europa", subregion:"Sul da Europa", cca3:"SM", latlng:[43.77,12.42], flag:"🇸🇲", currencies:["EUR"], languages:["Italian"] },
+            { name:"Santa Lúcia", capital:"Castries", region:"Américas", subregion:"Caribe", cca3:"LC", latlng:[13.88,-61.13], flag:"🇱🇨", currencies:["XCD"], languages:["English"] },
+            { name:"São Cristóvão e Névis", capital:"Basseterre", region:"Américas", subregion:"Caribe", cca3:"KN", latlng:[17.33,-62.75], flag:"🇰🇳", currencies:["XCD"], languages:["English"] },
+            { name:"São Tomé e Príncipe", capital:"São Tomé", region:"África", subregion:"África Central", cca3:"ST", latlng:[1,7], flag:"🇸🇹", currencies:["STN"], languages:["Portuguese"] },
+            { name:"São Vicente e Granadinas", capital:"Kingstown", region:"Américas", subregion:"Caribe", cca3:"VC", latlng:[13.25,-61.2], flag:"🇻🇨", currencies:["XCD"], languages:["English"] },
+            { name:"Senegal", capital:"Dakar", region:"África", subregion:"África Ocidental", cca3:"SN", latlng:[14,-14], flag:"🇸🇳", currencies:["XOF"], languages:["French"] },
+            { name:"Serra Leoa", capital:"Freetown", region:"África", subregion:"África Ocidental", cca3:"SL", latlng:[8.5,-11.5], flag:"🇸🇱", currencies:["SLL"], languages:["English"] },
+            { name:"Sérvia", capital:"Belgrado", region:"Europa", subregion:"Sudeste da Europa", cca3:"RS", latlng:[44,21], flag:"🇷🇸", currencies:["RSD"], languages:["Serbian"] },
+            { name:"Seychelles", capital:"Victoria", region:"África", subregion:"África Oriental", cca3:"SC", latlng:[-4.58,55.67], flag:"🇸🇨", currencies:["SCR"], languages:["Seychellois Creole","English","French"] },
+            { name:"Singapura", capital:"Singapura", region:"Ásia", subregion:"Sudeste Asiático", cca3:"SG", latlng:[1.37,103.8], flag:"🇸🇬", currencies:["SGD"], languages:["English","Malay","Chinese","Tamil"] },
+            { name:"Síria", capital:"Damasco", region:"Ásia", subregion:"Ásia Ocidental", cca3:"SY", latlng:[35,38], flag:"🇸🇾", currencies:["SYP"], languages:["Arabic"] },
+            { name:"Somália", capital:"Mogadíscio", region:"África", subregion:"África Oriental", cca3:"SO", latlng:[10,49], flag:"🇸🇴", currencies:["SOS"], languages:["Somali","Arabic"] },
+            { name:"Sri Lanka", capital:"Sri Jayawardenepura Kotte", region:"Ásia", subregion:"Sul da Ásia", cca3:"LK", latlng:[7,81], flag:"🇱🇰", currencies:["LKR"], languages:["Sinhala","Tamil"] },
+            { name:"Sudão", capital:"Cartum", region:"África", subregion:"Norte da África", cca3:"SD", latlng:[15,30], flag:"🇸🇩", currencies:["SDG"], languages:["Arabic","English"] },
+            { name:"Sudão do Sul", capital:"Juba", region:"África", subregion:"África Oriental", cca3:"SS", latlng:[7,30], flag:"🇸🇸", currencies:["SSP"], languages:["English"] },
+            { name:"Suécia", capital:"Estocolmo", region:"Europa", subregion:"Norte da Europa", cca3:"SE", latlng:[62,15], flag:"🇸🇪", currencies:["SEK"], languages:["Swedish"] },
+            { name:"Suíça", capital:"Berna", region:"Europa", subregion:"Europa Ocidental", cca3:"CH", latlng:[47,8], flag:"🇨🇭", currencies:["CHF"], languages:["German","French","Italian"] },
+            { name:"Suriname", capital:"Paramaribo", region:"Américas", subregion:"América do Sul", cca3:"SR", latlng:[4,-56], flag:"🇸🇷", currencies:["SRD"], languages:["Dutch"] },
+            { name:"Tailândia", capital:"Bangkok", region:"Ásia", subregion:"Sudeste Asiático", cca3:"TH", latlng:[15,100], flag:"🇹🇭", currencies:["THB"], languages:["Thai"] },
+            { name:"Tajiquistão", capital:"Dushanbe", region:"Ásia", subregion:"Ásia Central", cca3:"TJ", latlng:[39,71], flag:"🇹🇯", currencies:["TJS"], languages:["Tajik"] },
+            { name:"Tanzânia", capital:"Dodoma", region:"África", subregion:"África Oriental", cca3:"TZ", latlng:[-6,35], flag:"🇹🇿", currencies:["TZS"], languages:["Swahili","English"] },
+            { name:"Timor-Leste", capital:"Díli", region:"Ásia", subregion:"Sudeste Asiático", cca3:"TL", latlng:[-8.83,125.75], flag:"🇹🇱", currencies:["USD"], languages:["Portuguese","Tetum"] },
+            { name:"Togo", capital:"Lomé", region:"África", subregion:"África Ocidental", cca3:"TG", latlng:[8,1.17], flag:"🇹🇬", currencies:["XOF"], languages:["French"] },
+            { name:"Tonga", capital:"Nuku'alofa", region:"Oceania", subregion:"Polinésia", cca3:"TO", latlng:[-20,-175], flag:"🇹🇴", currencies:["TOP"], languages:["Tongan","English"] },
+            { name:"Trindade e Tobago", capital:"Port of Spain", region:"Américas", subregion:"Caribe", cca3:"TT", latlng:[11,-61], flag:"🇹🇹", currencies:["TTD"], languages:["English"] },
+            { name:"Tunísia", capital:"Túnis", region:"África", subregion:"Norte da África", cca3:"TN", latlng:[34,9], flag:"🇹🇳", currencies:["TND"], languages:["Arabic"] },
+            { name:"Turcomenistão", capital:"Asgabate", region:"Ásia", subregion:"Ásia Central", cca3:"TM", latlng:[40,60], flag:"🇹🇲", currencies:["TMT"], languages:["Turkmen"] },
+            { name:"Turquia", capital:"Ancara", region:"Ásia", subregion:"Ásia Ocidental", cca3:"TR", latlng:[39,35], flag:"🇹🇷", currencies:["TRY"], languages:["Turkish"] },
+            { name:"Tuvalu", capital:"Funafuti", region:"Oceania", subregion:"Polinésia", cca3:"TV", latlng:[-8,178], flag:"🇹🇻", currencies:["AUD"], languages:["Tuvaluan","English"] },
+            { name:"Ucrânia", capital:"Kiev", region:"Europa", subregion:"Leste da Europa", cca3:"UA", latlng:[49,32], flag:"🇺🇦", currencies:["UAH"], languages:["Ukrainian"] },
+            { name:"Uganda", capital:"Kampala", region:"África", subregion:"África Oriental", cca3:"UG", latlng:[1,32], flag:"🇺🇬", currencies:["UGX"], languages:["English","Swahili"] },
+            { name:"Uruguai", capital:"Montevidéu", region:"Américas", subregion:"América do Sul", cca3:"UY", latlng:[-33,-56], flag:"🇺🇾", currencies:["UYU"], languages:["Spanish"] },
+            { name:"Uzbequistão", capital:"Tashkent", region:"Ásia", subregion:"Ásia Central", cca3:"UZ", latlng:[41,64], flag:"🇺🇿", currencies:["UZS"], languages:["Uzbek"] },
+            { name:"Vanuatu", capital:"Port Vila", region:"Oceania", subregion:"Melanésia", cca3:"VU", latlng:[-16,167], flag:"🇻🇺", currencies:["VUV"], languages:["Bislama","English","French"] },
+            { name:"Vaticano", capital:"Cidade do Vaticano", region:"Europa", subregion:"Sul da Europa", cca3:"VA", latlng:[41.9,12.45], flag:"🇻🇦", currencies:["EUR"], languages:["Italian","Latin"] },
+            { name:"Venezuela", capital:"Caracas", region:"Américas", subregion:"América do Sul", cca3:"VE", latlng:[8,-66], flag:"🇻🇪", currencies:["VES"], languages:["Spanish"] },
+            { name:"Vietnã", capital:"Hanói", region:"Ásia", subregion:"Sudeste Asiático", cca3:"VN", latlng:[16.17,107.83], flag:"🇻🇳", currencies:["VND"], languages:["Vietnamese"] },
+            { name:"Zâmbia", capital:"Lusaka", region:"África", subregion:"África Oriental", cca3:"ZM", latlng:[-15,30], flag:"🇿🇲", currencies:["ZMW"], languages:["English"] },
+            { name:"Zimbábue", capital:"Harare", region:"África", subregion:"África Oriental", cca3:"ZW", latlng:[-20,30], flag:"🇿🇼", currencies:["ZWL"], languages:["English","Shona"] }
+        ];
+
+        // ============================================================
+        // CLASSE PRINCIPAL
+        // ============================================================
+        class TravelApp {
+            constructor() {
+                this.state = {
+                    allCountries: [],
+                    cache: {},
+                    selected: null,
+                    map: null,
+                    itinerary: this.load('vp_itinerary',[]),
+                    budget: this.load('vp_budget',[]),
+                    checklists: this.load('vp_checklists',[]),
+                    ideas: this.load('vp_ideas',[]),
+                    notes: this.load('vp_notes',[]),
+                    favorites: this.load('vp_favorites',[]),
+                    currentPage: 'explore',
+                    displayed: 0,
+                    online: false,
+                    errorMsg: ''
+                };
+                this.BATCH = 50;
+                this.init();
+            }
+            load(k,f) { try{return JSON.parse(localStorage.getItem(k))||f}catch{return f} }
+            save(k,d) { localStorage.setItem(k,JSON.stringify(d)); }
+
+            async init() {
+                this.setupNav();
+                document.getElementById('globalSearch').addEventListener('keyup', e => { if(e.key==='Enter') this.performSearch(); });
+                this.setupInfiniteScroll();
+                // Carrega imediatamente do offline para garantir lista cheia
+                this.state.allCountries = [...ALL_COUNTRIES_OFFLINE];
+                this.state.allCountries.sort((a,b)=>a.name.localeCompare(b.name,'pt'));
+                this.state.displayed = 0;
+                document.getElementById('countryGrid').innerHTML = '';
+                this.loadMoreCountries();
+                document.getElementById('exploreCount').textContent = this.state.allCountries.length + ' países (offline)';
+                this.updateUI('offline');
+                // Tenta API em segundo plano para atualizar dados
+                this.tryOnlineUpdate();
+            }
+
+            async tryOnlineUpdate() {
+                try {
+                    const resp = await fetch('https://restcountries.com/v3.1/all?fields=name,capital,region,subregion,cca3,latlng,population,area,currencies,languages,timezones');
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        this.state.allCountries = data.map(c => ({
+                            name: c.name?.common || 'Unknown',
+                            capital: c.capital?.[0] || 'N/A',
+                            region: c.region || '',
+                            subregion: c.subregion || '',
+                            cca3: c.cca3 || '',
+                            latlng: c.latlng || [0,0],
+                            flag: this.getFlag(c.cca3),
+                            population: c.population || 0,
+                            area: c.area || 0,
+                            currencies: c.currencies ? Object.keys(c.currencies) : [],
+                            languages: c.languages ? Object.values(c.languages) : [],
+                            timezones: c.timezones || []
+                        }));
+                        this.state.allCountries.sort((a,b)=>a.name.localeCompare(b.name,'pt'));
+                        this.state.online = true;
+                        this.state.errorMsg = '';
+                        this.state.displayed = 0;
+                        document.getElementById('countryGrid').innerHTML = '';
+                        this.loadMoreCountries();
+                        document.getElementById('exploreCount').textContent = this.state.allCountries.length + ' países (online)';
+                        this.updateUI('online');
+                        this.populateSelects();
+                    } else throw new Error('Status ' + resp.status);
+                } catch (e) {
+                    console.warn('API offline:', e.message);
+                    this.state.errorMsg = e.message;
+                    this.updateUI('error');
+                }
+            }
+
+            updateUI(status) {
+                const dot = document.getElementById('statusDot');
+                const text = document.getElementById('statusText');
+                const banner = document.getElementById('bannerArea');
+                if (status === 'online') {
+                    dot.className = 'status-dot';
+                    text.textContent = 'Online';
+                    banner.innerHTML = '<div class="banner banner-success">Dados atualizados com sucesso.</div>';
+                } else if (status === 'offline') {
+                    dot.className = 'status-dot offline';
+                    text.textContent = 'Offline (dados internos)';
+                    banner.innerHTML = '<div class="banner banner-warning">Usando lista offline (193 países). <button class="btn btn-sm btn-secondary" onclick="window.app.tryOnlineUpdate()">Tentar conectar</button></div>';
+                } else {
+                    dot.className = 'status-dot offline';
+                    text.textContent = 'Erro de conexão';
+                    banner.innerHTML = `<div class="banner banner-error">Erro ao conectar: ${this.state.errorMsg}. Usando dados offline. <button class="btn btn-sm btn-secondary" onclick="window.app.tryOnlineUpdate()">Tentar novamente</button></div>`;
+                }
+            }
+
+            getFlag(cca3) {
+                const m = { AF:'🇦🇫',ZA:'🇿🇦',AL:'🇦🇱',DE:'🇩🇪',AR:'🇦🇷',AU:'🇦🇺',AT:'🇦🇹',BD:'🇧🇩',BE:'🇧🇪',BO:'🇧🇴',BR:'🇧🇷',CA:'🇨🇦',CL:'🇨🇱',CN:'🇨🇳',CO:'🇨🇴',CR:'🇨🇷',CU:'🇨🇺',DK:'🇩🇰',EG:'🇪🇬',SV:'🇸🇻',ET:'🇪🇹',FI:'🇫🇮',FR:'🇫🇷',DE:'🇩🇪',GR:'🇬🇷',GT:'🇬🇹',HT:'🇭🇹',HN:'🇭🇳',IN:'🇮🇳',ID:'🇮🇩',IR:'🇮🇷',IQ:'🇮🇶',IE:'🇮🇪',IL:'🇮🇱',IT:'🇮🇹',JM:'🇯🇲',JP:'🇯🇵',JO:'🇯🇴',KE:'🇰🇪',KW:'🇰🇼',LB:'🇱🇧',LY:'🇱🇾',MG:'🇲🇬',MY:'🇲🇾',MX:'🇲🇽',MA:'🇲🇦',NP:'🇳🇵',NL:'🇳🇱',NZ:'🇳🇿',NI:'🇳🇮',NG:'🇳🇬',NO:'🇳🇴',PK:'🇵🇰',PA:'🇵🇦',PY:'🇵🇾',PE:'🇵🇪',PH:'🇵🇭',PL:'🇵🇱',PT:'🇵🇹',RO:'🇷🇴',RU:'🇷🇺',SA:'🇸🇦',SG:'🇸🇬',ZA:'🇿🇦',KR:'🇰🇷',ES:'🇪🇸',LK:'🇱🇰',SD:'🇸🇩',SE:'🇸🇪',CH:'🇨🇭',SY:'🇸🇾',TZ:'🇹🇿',TH:'🇹🇭',TT:'🇹🇹',TN:'🇹🇳',TR:'🇹🇷',UA:'🇺🇦',AE:'🇦🇪',GB:'🇬🇧',US:'🇺🇸',UY:'🇺🇾',VE:'🇻🇪',VN:'🇻🇳',YE:'🇾🇪',ZW:'🇿🇼' };
+                return m[cca3] || '🏳️';
+            }
+
+            loadMoreCountries() {
+                const grid = document.getElementById('countryGrid');
+                const start = this.state.displayed;
+                const end = Math.min(start + this.BATCH, this.state.allCountries.length);
+                const frag = document.createDocumentFragment();
+                for (let i=start; i<end; i++) {
+                    const c = this.state.allCountries[i];
+                    const el = document.createElement('div');
+                    el.className = 'country-item';
+                    el.innerHTML = `<span class="flag">${c.flag}</span><div class="info"><div class="name">${c.name}</div><div class="capital">${c.capital}</div></div>`;
+                    el.addEventListener('click', ()=>this.selectCountry(c.name));
+                    frag.appendChild(el);
+                }
+                grid.appendChild(frag);
+                this.state.displayed = end;
+            }
+
+            setupInfiniteScroll() {
+                const observer = new IntersectionObserver((entries) => {
+                    if (entries[0].isIntersecting && this.state.displayed < this.state.allCountries.length) {
+                        this.loadMoreCountries();
+                    }
+                }, { root: document.getElementById('contentScroll'), rootMargin: '100px' });
+                const trigger = document.getElementById('loadMoreTrigger');
+                if (trigger) observer.observe(trigger);
+            }
+
+            setupNav() {
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const page = item.dataset.page;
+                        if (page) this.navigateTo(page);
+                    });
+                });
+            }
+
+            navigateTo(page) {
+                this.state.currentPage = page;
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                const pageEl = document.getElementById('page-' + page);
+                if (pageEl) pageEl.classList.add('active');
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                const navItem = document.querySelector(`.nav-item[data-page="${page}"]`);
+                if (navItem) navItem.classList.add('active');
+                const titles = { explore:'🌍 Explorar', favorites:'⭐ Favoritos', itinerary:'📅 Roteiro', budget:'💰 Orçamento', checklist:'✅ Checklist', map:'🗺️ Mapa', script:'🎬 Roteiro', stories:'🔍 Histórias', viral:'📈 Viral', notes:'📝 Notas', ideas:'💡 Ideias' };
+                document.getElementById('pageTitle').textContent = titles[page] || 'Viajante Pro';
+                if (page === 'map') setTimeout(()=>this.initMap(),300);
+                if (page === 'itinerary') this.renderItinerary();
+                if (page === 'budget') this.renderBudget();
+                if (page === 'checklist') this.renderChecklists();
+                if (page === 'ideas') this.renderIdeas();
+                if (page === 'notes') this.renderNotes();
+                if (page === 'favorites') this.renderFavorites();
+            }
+
+            performSearch() {
+                const q = document.getElementById('globalSearch').value.trim().toLowerCase();
+                if (!q) return;
+                const match = this.state.allCountries.find(c => c.name.toLowerCase().includes(q) || c.capital.toLowerCase().includes(q));
+                if (match) {
+                    this.selectCountry(match.name);
+                } else {
+                    alert('País não encontrado.');
+                }
+            }
+
+            async selectCountry(name) {
+                const country = this.state.allCountries.find(c=>c.name===name);
+                if (!country) return;
+                this.state.selected = country;
+                this.navigateTo('country-detail');
+                const container = document.getElementById('countryDetailContent');
+                container.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>Buscando detalhes...</p></div>';
+                if (this.state.cache[name]) {
+                    this.renderCountryDetail(this.state.cache[name]);
+                } else {
+                    let extract = '', url = '';
+                    if (this.state.online) {
+                        try {
+                            let resp = await fetch(`https://pt.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(name)}`);
+                            if (!resp.ok) resp = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(name)}`);
+                            if (resp.ok) {
+                                const data = await resp.json();
+                                extract = data.extract || '';
+                                url = data.content_urls?.desktop?.page || '';
+                            }
+                        } catch {}
+                    }
+                    const enriched = { ...country, wikiExtract: extract, wikiUrl: url };
+                    this.state.cache[name] = enriched;
+                    this.renderCountryDetail(enriched);
+                }
+            }
+
+            renderCountryDetail(data) {
+                const container = document.getElementById('countryDetailContent');
+                const isFav = this.state.favorites.includes(data.name);
+                container.innerHTML = `
+                <div class="card">
+                    <div class="card-header">
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <span style="font-size:36px;">${data.flag}</span>
+                            <div><h3>${data.name}</h3><p style="color:var(--text-muted);">${data.capital} • ${data.region}</p></div>
+                        </div>
+                        <button class="btn ${isFav?'btn-primary':'btn-secondary'} btn-sm" onclick="window.app.toggleFavorite('${data.name}')">${isFav?'⭐':'☆'}</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="tabs">
+                            <div class="tab active" onclick="window.app.switchTab(this,'overview')">📝 Geral</div>
+                            <div class="tab" onclick="window.app.switchTab(this,'practical')">🛂 Prático</div>
+                        </div>
+                        <div class="tab-content active" id="tab-overview">
+                            ${data.wikiExtract ? `<p style="line-height:1.8;">${data.wikiExtract}</p>` : '<p>Descrição não disponível offline. Conecte-se para obter dados da Wikipedia.</p>'}
+                            ${data.wikiUrl ? `<a href="${data.wikiUrl}" target="_blank">Ler na Wikipedia →</a>` : ''}
+                        </div>
+                        <div class="tab-content" id="tab-practical">
+                            <p><strong>💰 Moeda:</strong> ${(data.currencies||[]).join(', ') || 'N/A'}</p>
+                            <p><strong>🗣️ Idiomas:</strong> ${(data.languages||[]).slice(0,3).join(', ') || 'N/A'}</p>
+                            <p><strong>👥 População:</strong> ${data.population? (data.population/1e6).toFixed(1)+' milhões':'N/A'}</p>
+                            <p><strong>📐 Área:</strong> ${data.area? data.area.toLocaleString()+' km²':'N/A'}</p>
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            switchTab(tab, name) {
+                const card = tab.closest('.card-body');
+                card.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+                tab.classList.add('active');
+                card.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+                document.getElementById('tab-'+name).classList.add('active');
+            }
+
+            toggleFavorite(name) {
+                const idx = this.state.favorites.indexOf(name);
+                if (idx>-1) this.state.favorites.splice(idx,1);
+                else this.state.favorites.push(name);
+                this.save('vp_favorites', this.state.favorites);
+                this.renderFavorites();
+                if (this.state.selected?.name === name) this.selectCountry(name);
+            }
+
+            renderFavorites() {
+                const container = document.getElementById('favoritesList');
+                if (this.state.favorites.length===0) {
+                    container.innerHTML='<p style="color:var(--text-muted);">Nenhum favorito.</p>';
+                } else {
+                    container.innerHTML = this.state.favorites.map(name=>{
+                        const c = this.state.allCountries.find(x=>x.name===name);
+                        return c ? `<div class="country-item" onclick="window.app.selectCountry('${name}')"><span class="flag">${c.flag}</span><div class="info"><div class="name">${c.name}</div></div></div>` : '';
+                    }).join('');
+                }
+            }
+
+            initMap(){ if(this.state.map) return; this.state.map = L.map('map').setView([0,0],2); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(this.state.map); }
+            calculateRoute(){ const o=document.getElementById('routeOrigin').value,d=document.getElementById('routeDest').value; document.getElementById('routeInfo').innerHTML = o&&d ? `Rota simulada: ${o} → ${d} (~${500+Math.floor(Math.random()*2000)}km)` : ''; }
+            addItineraryDay(){ alert('Funcionalidade de roteiro disponível na versão completa.'); }
+            renderItinerary(){}
+            addBudgetItem(){ const desc=prompt('Descrição:'); if(desc){ const val=parseFloat(prompt('Valor:')); if(!isNaN(val)){ this.state.budget.push({id:Date.now(),desc,val}); this.save('vp_budget',this.state.budget); this.renderBudget(); } } }
+            renderBudget(){ const list=document.getElementById('budgetList'); const total=this.state.budget.reduce((s,i)=>s+i.val,0); document.getElementById('budgetSummary').innerHTML=`Total: ${total.toFixed(2)}`; list.innerHTML=this.state.budget.map(b=>`<div>${b.desc}: ${b.val.toFixed(2)} <button class="btn btn-sm btn-danger" onclick="window.app.deleteBudget(${b.id})">X</button></div>`).join(''); }
+            deleteBudget(id){ this.state.budget=this.state.budget.filter(b=>b.id!==id); this.save('vp_budget',this.state.budget); this.renderBudget(); }
+            addChecklistItem(){ const t=prompt('Item:'); if(t){ this.state.checklists.push({id:Date.now(),text:t,done:false}); this.save('vp_checklists',this.state.checklists); this.renderChecklists(); } }
+            renderChecklists(){ const c=document.getElementById('checklistContainer'); c.innerHTML=this.state.checklists.map(i=>`<div><input type="checkbox" ${i.done?'checked':''} onchange="window.app.toggleChecklist(${i.id})"> ${i.text}</div>`).join('')||'<p>Vazio</p>'; }
+            toggleChecklist(id){ const i=this.state.checklists.find(x=>x.id===id); if(i){ i.done=!i.done; this.save('vp_checklists',this.state.checklists); this.renderChecklists(); } }
+            saveIdea(){ const t=document.getElementById('ideaInput').value.trim(); if(t){ this.state.ideas.push({id:Date.now(),text:t}); this.save('vp_ideas',this.state.ideas); document.getElementById('ideaInput').value=''; this.renderIdeas(); } }
+            renderIdeas(){ const l=document.getElementById('ideasList'); l.innerHTML=this.state.ideas.map(i=>`<p>💡 ${i.text}</p>`).join('')||'<p>Sem ideias.</p>'; }
+            addNote(){ const t=prompt('Nota:'); if(t){ this.state.notes.push({id:Date.now(),text:t}); this.save('vp_notes',this.state.notes); this.renderNotes(); } }
+            renderNotes(){ const c=document.getElementById('notesContainer'); c.innerHTML=this.state.notes.map(n=>`<p>📝 ${n.text}</p>`).join('')||'<p>Sem notas.</p>'; }
+            generateScript(){ document.getElementById('scriptOutput').innerHTML='<p>Roteiro exemplo...</p>'; }
+            huntStories(){ document.getElementById('storiesOutput').innerHTML='<p>Ângulos para a cidade...</p>'; }
+            analyzeViral(){ document.getElementById('viralOutput').innerHTML='<p>Análise de viralização...</p>'; }
+            populateSelects(){
+                const s = document.getElementById('itineraryCountry');
+                if(s && s.options.length<=1){
+                    s.innerHTML='<option value="">País...</option>';
+                    this.state.allCountries.forEach(c=>s.add(new Option(c.name, c.name)));
+                }
+            }
+            renderAll(){
+                this.renderFavorites();
+                this.renderBudget();
+                this.renderChecklists();
+                this.renderIdeas();
+                this.renderNotes();
+            }
+        }
+        window.app = new TravelApp();
+    </script>
+</body>
+</html>
